@@ -63,6 +63,40 @@ var influxCmd = &cobra.Command{
 			return fmt.Errorf("failed to open water meter: %w", err)
 		}
 
+		if jsonOutput {
+			data, err := json.Marshal(map[string]int64{"value": 0})
+			if err != nil {
+				return fmt.Errorf("failed to marshal value 0: %w", err)
+			}
+
+			fmt.Println(string(data))
+		}
+
+		ep, err := influx.NewWaterPoint(time.Now(), 0, additionalInfluxOptions.WaterMeasurement, tags)
+		if err != nil {
+			return fmt.Errorf("failed to create new water point for value 0: %w", err)
+		}
+
+		bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:        additionalInfluxOptions.Database,
+			RetentionPolicy: additionalInfluxOptions.RetentionPolicy,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create new batch points for value 0: %w", err)
+		}
+
+		bp.AddPoint(ep)
+
+		if additionalInfluxOptions.DisableUpload {
+			for _, p := range bp.Points() {
+				fmt.Println(p.PrecisionString("ns"))
+			}
+		} else {
+			if err := c.Write(bp); err != nil {
+				return fmt.Errorf("failed to write point for value 0: %w", err)
+			}
+		}
+
 		if err := wm.RegisterWatcher(func(value int64) {
 			if jsonOutput {
 				data, err := json.Marshal(map[string]int64{"value": value})
